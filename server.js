@@ -7,8 +7,8 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const HUGGINGFACE_API_KEY = process.env.HF_API_KEY;
 
-// You can change model later if you want
-const HF_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-1B-Instruct";
+// (Better + more stable free model)
+const HF_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
 
 app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
     try {
@@ -21,14 +21,15 @@ app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
         const chatId = message.chat.id;
         const userText = message.text;
 
-        // Call Hugging Face API
+        // Call Hugging Face
         const apiResponse = await axios.post(
             HF_URL,
             {
                 inputs: userText,
                 parameters: {
-                    max_new_tokens: 250,
-                    temperature: 0.7
+                    max_new_tokens: 300,
+                    temperature: 0.7,
+                    return_full_text: false
                 }
             },
             {
@@ -41,11 +42,13 @@ app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
         let botReply = "🤖 Hmm... samajh nahi aaya, dobara bol.";
 
-        if (apiResponse.data && apiResponse.data[0] && apiResponse.data[0].generated_text) {
+        if (Array.isArray(apiResponse.data) && apiResponse.data[0]?.generated_text) {
             botReply = apiResponse.data[0].generated_text;
+        } 
+        else if (typeof apiResponse.data === "string") {
+            botReply = apiResponse.data;
         }
 
-        // Send response back to Telegram
         await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             chat_id: chatId,
             text: botReply
@@ -54,15 +57,19 @@ app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
         res.sendStatus(200);
 
     } catch (error) {
-        console.error("Error:", error.message);
+        console.error("HF Error:", error.message);
 
-        // Fallback message if AI fails
-        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            chat_id: message.chat.id,
-            text: "⚠️ AI busy hai abhi, thodi der baad try kar!"
-        });
+        // Safe fallback (no undefined message bug now)
+        if (req.body?.message?.chat?.id) {
+            const chatId = req.body.message.chat.id;
 
-        res.sendStatus(500);
+            await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                chat_id: chatId,
+                text: "⚠️ AI busy hai abhi (free server sleep). Thodi der baad try kar!"
+            });
+        }
+
+        res.sendStatus(200); // avoid crashing bot
     }
 });
 
