@@ -8,7 +8,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const HUGGINGFACE_API_KEY = process.env.HF_API_KEY;
 
 // (Better + more stable free model)
-const HF_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
+const HF_URL = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill";
 
 app.post(`/webhook/${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
     try {
@@ -81,3 +81,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
