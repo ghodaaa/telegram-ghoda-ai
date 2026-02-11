@@ -23,22 +23,23 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const prompt = match[1];
 
-  bot.sendMessage(chatId, "🎬 Generating AI video... please wait (60–120s)");
+  await bot.sendMessage(chatId, "🎬 Generating AI video... please wait (60–120s)");
+
+  let browser = null;
 
   try {
-    // 1️⃣ Launch headless browser
-    const browser = await chromium.launch({
-  headless: true,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage"
-  ]
-});
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage"
+      ]
+    });
 
     const page = await browser.newPage();
 
-    // 2️⃣ Load Puter.js inside browser
+    // Load Puter in browser
     await page.setContent(`
       <html>
       <head>
@@ -48,54 +49,66 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
       </html>
     `);
 
-    // 3️⃣ Run Wan AI inside browser
- const videoBase64 = await Promise.race([
-  page.evaluate(
-    async (userPrompt) => {
-      const videoEl = await puter.ai.txt2vid(userPrompt, {
-        model: "Wan-AI/Wan2.2-T2V-A14B"
-      });
+    // Wait until Puter is fully loaded
+    await page.waitForFunction(() => typeof puter !== "undefined", {
+      timeout: 30000
+    });
 
-      const response = await fetch(videoEl.src);
-      const blob = await response.blob();
+    const videoBase64 = await Promise.race([
+      page.evaluate(
+        async (userPrompt) => {
+          try {
+            const videoEl = await puter.ai.txt2vid(userPrompt, {
+              model: "Wan-AI/Wan2.2-T2V-A14B"
+            });
 
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = () => resolve(reader.result);
-      });
-    },
-    prompt
-  ),
+            const response = await fetch(videoEl.src);
+            const blob = await response.blob();
 
-  new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Wan AI timeout")), 150000)
-  )
-]);
+            return await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(blob);
+              reader.onloadend = () => resolve(reader.result);
+            });
+          } catch (e) {
+            return "WAN_ERROR:" + e.message;
+          }
+        },
+        prompt
+      ),
 
-    await browser.close();
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("WAN_TIMEOUT")), 150000)
+      )
+    ]);
 
-    // 4️⃣ Convert Base64 → Buffer
+    // If Wan returned an error, stop here
+    if (typeof videoBase64 === "string" && videoBase64.startsWith("WAN_ERROR")) {
+      throw new Error(videoBase64);
+    }
+
     const videoBuffer = Buffer.from(
       videoBase64.split(",")[1],
       "base64"
     );
 
-    // 5️⃣ Send video to Telegram
     await bot.sendVideo(chatId, videoBuffer, {
       caption: `🎥 AI Video for:\n"${prompt}"`
     });
 
   } catch (err) {
-    console.error(err);
-    bot.sendMessage(chatId, "❌ Failed to generate video. Try again.");
+    console.error("FINAL ERROR:", err);
+    await bot.sendMessage(
+      chatId,
+      "❌ Wan AI failed this time. Try a simpler prompt."
+    );
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
