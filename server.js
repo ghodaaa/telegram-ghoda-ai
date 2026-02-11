@@ -27,7 +27,11 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 
   try {
     // 1️⃣ Launch headless browser
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({
+  headless: true,
+  args: ["--no-sandbox", "--disable-setuid-sandbox"]
+});
+
     const page = await browser.newPage();
 
     // 2️⃣ Load Puter.js inside browser
@@ -41,7 +45,9 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
     `);
 
     // 3️⃣ Run Wan AI inside browser
-    const videoBase64 = await page.evaluate(async (userPrompt) => {
+    const videoBase64 = await Promise.race([
+  page.evaluate(async (userPrompt) => {
+
       const videoEl = await puter.ai.txt2vid(userPrompt, {
         model: "Wan-AI/Wan2.2-T2V-A14B"
       });
@@ -55,6 +61,12 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
         reader.onloadend = () => resolve(reader.result);
       });
     }, prompt);
+
+      }),
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Wan AI timeout")), 150000)
+  )
+]);
 
     await browser.close();
 
@@ -78,3 +90,4 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
