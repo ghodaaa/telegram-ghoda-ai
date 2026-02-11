@@ -49,23 +49,25 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
     `);
 
     // 3️⃣ Run Wan AI inside browser
-   const videoBase64 = await Promise.race([
-  page.evaluate(async (userPrompt) => {
-    const videoEl = await puter.ai.txt2vid(userPrompt, {
-      model: "Wan-AI/Wan2.2-T2V-A14B"
-    });
+ const videoBase64 = await Promise.race([
+  page.evaluate(
+    async (userPrompt) => {
+      const videoEl = await puter.ai.txt2vid(userPrompt, {
+        model: "Wan-AI/Wan2.2-T2V-A14B"
+      });
 
-    const response = await fetch(videoEl.src);
-    const blob = await response.blob();
+      const response = await fetch(videoEl.src);
+      const blob = await response.blob();
 
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = () => resolve(reader.result);
-    });
-  }, prompt),
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => resolve(reader.result);
+      });
+    },
+    prompt
+  ),
 
-      }),
   new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Wan AI timeout")), 150000)
   )
@@ -93,6 +95,7 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
