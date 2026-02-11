@@ -1,0 +1,12 @@
+FROM mcr.microsoft.com/playwright:v1.41.0-jammy
+
+WORKDIR /app
+
+COPY package.json .
+RUN npm install
+
+COPY . .
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+CMD ["node", "server.js"]
